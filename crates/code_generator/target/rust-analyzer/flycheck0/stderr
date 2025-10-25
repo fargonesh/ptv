@@ -1,0 +1,90 @@
+   0.090196708s  INFO prepare_target{force=false package_id=code_generator v0.1.0 (/Users/ivypierlot/code/ptv/crates/code_generator) target="code_generator"}: cargo::core::compiler::fingerprint: stale: changed "/Users/ivypierlot/code/ptv/crates/code_generator/src/main.rs"
+   0.090205958s  INFO prepare_target{force=false package_id=code_generator v0.1.0 (/Users/ivypierlot/code/ptv/crates/code_generator) target="code_generator"}: cargo::core::compiler::fingerprint:           (vs) "/Users/ivypierlot/code/ptv/target/debug/.fingerprint/code_generator-770c63868c10ba90/dep-bin-code_generator"
+   0.090208583s  INFO prepare_target{force=false package_id=code_generator v0.1.0 (/Users/ivypierlot/code/ptv/crates/code_generator) target="code_generator"}: cargo::core::compiler::fingerprint:                FileTime { seconds: 1761278736, nanos: 170435432 } < FileTime { seconds: 1761278754, nanos: 607855764 }
+   0.090529166s  INFO prepare_target{force=false package_id=code_generator v0.1.0 (/Users/ivypierlot/code/ptv/crates/code_generator) target="code_generator"}: cargo::core::compiler::fingerprint: fingerprint dirty for code_generator v0.1.0 (/Users/ivypierlot/code/ptv/crates/code_generator)/Check { test: false }/TargetInner { name: "code_generator", doc: true, ..: with_path("/Users/ivypierlot/code/ptv/crates/code_generator/src/main.rs", Edition2024) }
+   0.090534583s  INFO prepare_target{force=false package_id=code_generator v0.1.0 (/Users/ivypierlot/code/ptv/crates/code_generator) target="code_generator"}: cargo::core::compiler::fingerprint:     dirty: FsStatusOutdated(StaleItem(ChangedFile { reference: "/Users/ivypierlot/code/ptv/target/debug/.fingerprint/code_generator-770c63868c10ba90/dep-bin-code_generator", reference_mtime: FileTime { seconds: 1761278736, nanos: 170435432 }, stale: "/Users/ivypierlot/code/ptv/crates/code_generator/src/main.rs", stale_mtime: FileTime { seconds: 1761278754, nanos: 607855764 } }))
+   0.091482791s  INFO prepare_target{force=false package_id=code_generator v0.1.0 (/Users/ivypierlot/code/ptv/crates/code_generator) target="code_generator"}: cargo::core::compiler::fingerprint: stale: changed "/Users/ivypierlot/code/ptv/crates/code_generator/src/main.rs"
+   0.091484291s  INFO prepare_target{force=false package_id=code_generator v0.1.0 (/Users/ivypierlot/code/ptv/crates/code_generator) target="code_generator"}: cargo::core::compiler::fingerprint:           (vs) "/Users/ivypierlot/code/ptv/target/debug/.fingerprint/code_generator-24cd78f5251561a4/dep-test-bin-code_generator"
+   0.091485416s  INFO prepare_target{force=false package_id=code_generator v0.1.0 (/Users/ivypierlot/code/ptv/crates/code_generator) target="code_generator"}: cargo::core::compiler::fingerprint:                FileTime { seconds: 1761278736, nanos: 170450516 } < FileTime { seconds: 1761278754, nanos: 607855764 }
+   0.091921125s  INFO prepare_target{force=false package_id=code_generator v0.1.0 (/Users/ivypierlot/code/ptv/crates/code_generator) target="code_generator"}: cargo::core::compiler::fingerprint: fingerprint dirty for code_generator v0.1.0 (/Users/ivypierlot/code/ptv/crates/code_generator)/Check { test: true }/TargetInner { name: "code_generator", doc: true, ..: with_path("/Users/ivypierlot/code/ptv/crates/code_generator/src/main.rs", Edition2024) }
+   0.091926625s  INFO prepare_target{force=false package_id=code_generator v0.1.0 (/Users/ivypierlot/code/ptv/crates/code_generator) target="code_generator"}: cargo::core::compiler::fingerprint:     dirty: FsStatusOutdated(StaleItem(ChangedFile { reference: "/Users/ivypierlot/code/ptv/target/debug/.fingerprint/code_generator-24cd78f5251561a4/dep-test-bin-code_generator", reference_mtime: FileTime { seconds: 1761278736, nanos: 170450516 }, stale: "/Users/ivypierlot/code/ptv/crates/code_generator/src/main.rs", stale_mtime: FileTime { seconds: 1761278754, nanos: 607855764 } }))
+   0.093830625s  INFO prepare_target{force=false package_id=ptv v0.3.1 (/Users/ivypierlot/code/ptv/crates/api) target="ptv"}: cargo::core::compiler::fingerprint: fingerprint error for ptv v0.3.1 (/Users/ivypierlot/code/ptv/crates/api)/Check { test: false }/TargetInner { name_inferred: true, ..: lib_target("ptv", ["lib"], "/Users/ivypierlot/code/ptv/crates/api/src/lib.rs", Edition2024) }
+   0.093942708s  INFO prepare_target{force=false package_id=ptv v0.3.1 (/Users/ivypierlot/code/ptv/crates/api) target="ptv"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/ivypierlot/code/ptv/target/debug/.fingerprint/ptv-924542e5d82a6b54/lib-ptv`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: <cargo::cli::Exec>::exec
+  13: cargo::main
+  14: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  15: std::rt::lang_start::<()>::{closure#0}
+  16: std::rt::lang_start_internal
+  17: _main
+   0.137419125s  INFO prepare_target{force=false package_id=ptv v0.3.1 (/Users/ivypierlot/code/ptv/crates/api) target="ptv"}: cargo::core::compiler::fingerprint: fingerprint error for ptv v0.3.1 (/Users/ivypierlot/code/ptv/crates/api)/Check { test: true }/TargetInner { name_inferred: true, ..: lib_target("ptv", ["lib"], "/Users/ivypierlot/code/ptv/crates/api/src/lib.rs", Edition2024) }
+   0.137429125s  INFO prepare_target{force=false package_id=ptv v0.3.1 (/Users/ivypierlot/code/ptv/crates/api) target="ptv"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/ivypierlot/code/ptv/target/debug/.fingerprint/ptv-a9267a893080c6b9/test-lib-ptv`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: <cargo::cli::Exec>::exec
+  13: cargo::main
+  14: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  15: std::rt::lang_start::<()>::{closure#0}
+  16: std::rt::lang_start_internal
+  17: _main
+   0.139006500s  INFO prepare_target{force=false package_id=ptv v0.3.1 (/Users/ivypierlot/code/ptv/crates/api) target="main"}: cargo::core::compiler::fingerprint: fingerprint error for ptv v0.3.1 (/Users/ivypierlot/code/ptv/crates/api)/Check { test: true }/TargetInner { kind: "test", name: "main", benched: false, ..: with_path("/Users/ivypierlot/code/ptv/crates/api/tests/main.rs", Edition2024) }
+   0.139010666s  INFO prepare_target{force=false package_id=ptv v0.3.1 (/Users/ivypierlot/code/ptv/crates/api) target="main"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/ivypierlot/code/ptv/target/debug/.fingerprint/ptv-063eed92c30c7813/test-integration-test-main`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: <cargo::cli::Exec>::exec
+  13: cargo::main
+  14: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  15: std::rt::lang_start::<()>::{closure#0}
+  16: std::rt::lang_start_internal
+  17: _main
+    Checking code_generator v0.1.0 (/Users/ivypierlot/code/ptv/crates/code_generator)
+    Checking ptv v0.3.1 (/Users/ivypierlot/code/ptv/crates/api)
+error: could not compile `ptv` (lib test) due to 4 previous errors; 1 warning emitted
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `ptv` (lib) due to 4 previous errors; 1 warning emitted
