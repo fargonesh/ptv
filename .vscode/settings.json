@@ -2,5 +2,6 @@
     "rust-analyzer.server.extraEnv": {
         "CARGO_TARGET_DIR": "target/analyzer",
         "RUSTFLAGS": "-C link-arg=-fuse-ld=lld"
-    }
+    },
+    "nixEnvSelector.nixFile": "${workspaceFolder}/devenv.nix"
 }

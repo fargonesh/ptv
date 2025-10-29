@@ -22,6 +22,8 @@
   packages = [
     # Packages used for flake-parts modules:
     pkgs.nil
+    pkgs.mold
+    pkgs.lld
     pkgs.statix
     pkgs.deadnix
     pkgs.alejandra
