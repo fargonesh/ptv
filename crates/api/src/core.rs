@@ -24,7 +24,7 @@ use anyhow::Error;
 #[swagger(
     path = "v3",
     strip_prefix = "V3.",
-    extra_names = [("RouteType", "ty::RouteType"), ("Health", "i8")],
+    extra_names = [("RouteType", "ty::RouteType"), ("Status", "ty::Status"),("Expand", "ty::ExpandOptions"), ("DisruptionStatus", "ty::DisruptionStatus"), ("ServiceOperator", "ty::ServiceOperator")],
     skip = ["signature"]
 )]
 pub struct Client {
