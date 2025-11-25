@@ -26,9 +26,9 @@ pub mod test {
 
     // TODO: Find sensible constants
     static ROUTE_TYPE: RouteType = RouteType::Train; // Train
-    static ROUTE_ID: RouteId = RouteId(1); // Alamein (Line)
-    static STOP_ID: StopId = StopId(1002); // Alamein (Station)
-    static DIRECTION_ID: DirectionId = DirectionId(1); // Towards Flinders Street
+    static ROUTE_ID: i32 = 1; // Alamein (Line)
+    static STOP_ID: i32 = 1002; // Alamein (Station)
+    static DIRECTION_ID: i32 = 1; // Towards Flinders Street
     static RUN_REF: &str = "1"; // Alamein something
 
     type Task =
@@ -39,15 +39,15 @@ pub mod test {
         // > Departures
         make_test!(
             map,
-            departures_stop,
-            DeparturesStopOpts => [gtfs,include_cancelled],
+             get_departures_by_route_type_and_stop_id,
+            GetDeparturesByRouteTypeAndStopIdParams => [gtfs,include_cancelled],
             ROUTE_TYPE,
             STOP_ID
         );
 
         make_test!(
             map,
-            departures_stop_route,
+            get_departures_by_route_type_and_route_id_and_stop_id,
             DeparturesStopRouteOpts => [[max_results: 10, look_backwards: true],gtfs,include_cancelled],
             ROUTE_TYPE,
             ROUTE_ID,
