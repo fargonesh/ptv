@@ -20,7 +20,7 @@ use anyhow::Error;
 
 #[derive(SwaggerClient)]
 #[swagger(
-    path = "swagger.json"
+    path = "v3"
     strip_prefix = "V3."
 )]
 pub struct Client {
