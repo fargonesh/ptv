@@ -22,7 +22,7 @@ pub struct Context {
     pub types: std::collections::HashMap<TypePath, String>,
     pub extra_types: RefCell<std::collections::HashMap<String, String>>,
     pub scope: RefCell<codegen::Scope>,
-    pub constant_parameters: std::collections::HashMap<String, String>,
+    pub constant_parameters: Vec<String>,
     // probably not the best way, but it makes sense
     pub extra_name: RefCell<VecDeque<String>>,
     pub strip_prefix: Option<String>,
@@ -207,6 +207,8 @@ impl ToRustTypeName for TypeTagged {
                         .front()
                         .context("Expected extra name for enum")?
                         .to_upper_camel_case();
+
+                    println!("Generating enum: {}", &enum_name);
                     if let Some(enuma) = context.extra_types.borrow().get(&enum_name) {
                         return Ok(enuma.clone());
                     } else {
@@ -278,14 +280,13 @@ impl ToRustTypeName for TypeTagged {
             }
             TypeTagged::Boolean => Ok("bool".to_string()),
             TypeTagged::Array { items } => {
-                let singular_name = {
-                    let name = context.get_name();
-                    name.strip_suffix("s")
-                        .to_owned()
-                        .unwrap_or(&name)
-                        .to_owned()
-                };
-                //let handle = context.handle_with_name(singular_name);
+                {
+                    let mut borrowed = context.extra_name.borrow_mut();
+                    let front_mut = borrowed.front_mut();
+                    if let Some(name) = front_mut {
+                        *name = name.strip_suffix("s").unwrap_or(name).to_string();
+                    }
+                }
                 Ok(format!(
                     "Vec<{}>",
                     items.schema_object.to_rust_type_name(context.clone())?
@@ -309,6 +310,7 @@ impl ToRustTypeName for TypeTagged {
                     let struct_name = context.get_name();
                     //                    println!("Generating struct: {}", struct_name);
                     let mut strukt = codegen::Struct::new(&struct_name);
+                    strukt.vis("pub");
                     strukt.derive("Debug");
                     strukt.derive("Serialize");
                     strukt.derive("Deserialize");

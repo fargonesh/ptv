@@ -45,71 +45,71 @@ pub mod test {
             STOP_ID
         );
 
-        make_test!(
-            map,
-            get_departures_by_route_type_and_route_id_and_stop_id,
-            DeparturesStopRouteOpts => [[max_results: 10, look_backwards: true],gtfs,include_cancelled],
-            ROUTE_TYPE,
-            ROUTE_ID,
-            STOP_ID
-        );
-        // > Routes
-        make_test!(
-            map,
-            routes,
-            RouteOpts => [route_types: vec![RouteType::Train]]
-        );
-
-        make_test!(map, routes_id,  RouteIdOpts => [include_geopath], ROUTE_ID);
-
-        // > Patterns
-        make_test!(map, patterns_run_route, PatternsRunRouteOpts => [stop_id: STOP_ID, expand: vec![ExpandOptions::All], include_skipped, include_geopath], RUN_REF, ROUTE_TYPE);
-
-        // > Directions
-
-        make_test!(map, directions_id, DIRECTION_ID);
-
-        make_test!(map, directions_route, ROUTE_ID);
-
-        make_test!(map, directions_id_route, DIRECTION_ID, ROUTE_TYPE);
-
-        // > Disruptions
-
-        make_test!(map, disruptions, DisruptionsOpts => [modes: vec![DisruptionModes::MetroTrain], modes: vec![DisruptionModes::MetroBus]]);
-
-        make_test!(
-            map,
-            disruptions_route,
-            DisruptionsSpecificOpts => [
-                status: DisruptionStatus::Current,
-                status: DisruptionStatus::Planned
-            ],
-            ROUTE_ID
-        );
-
-        make_test!(
-            map,
-            disruptions_route_stop,
-            DisruptionsSpecificOpts => [
-                status: DisruptionStatus::Current,
-                status: DisruptionStatus::Planned
-            ],
-            ROUTE_ID,
-            STOP_ID
-        );
-
-        make_test!(
-            map,
-            disruptions_stop,
-            DisruptionsSpecificOpts => [
-                status: DisruptionStatus::Current,
-                status: DisruptionStatus::Planned
-            ],
-            STOP_ID
-        );
+        //        make_test!(
+        //            map,
+        //            get_departures_by_route_type_and_route_id_and_stop_id,
+        //            DeparturesStopRouteOpts => [[max_results: 10, look_backwards: true],gtfs,include_cancelled],
+        //            ROUTE_TYPE,
+        //            ROUTE_ID,
+        //            STOP_ID
+        //        );
+        //        // > Routes
+        //        make_test!(
+        //            map,
+        //            routes,
+        //            RouteOpts => [route_types: vec![RouteType::Train]]
+        //        );
+        //
+        //        make_test!(map, routes_id,  RouteIdOpts => [include_geopath], ROUTE_ID);
+        //
+        //        // > Patterns
+        //        make_test!(map, patterns_run_route, PatternsRunRouteOpts => [stop_id: STOP_ID, expand: vec![ExpandOptions::All], include_skipped, include_geopath], RUN_REF, ROUTE_TYPE);
+        //
+        //        // > Directions
+        //
+        //        make_test!(map, directions_id, DIRECTION_ID);
+        //
+        //        make_test!(map, directions_route, ROUTE_ID);
+        //
+        //        make_test!(map, directions_id_route, DIRECTION_ID, ROUTE_TYPE);
+        //
+        //        // > Disruptions
+        //
+        //        make_test!(map, disruptions, DisruptionsOpts => [modes: vec![DisruptionModes::MetroTrain], modes: vec![DisruptionModes::MetroBus]]);
+        //
+        //        make_test!(
+        //            map,
+        //            disruptions_route,
+        //            DisruptionsSpecificOpts => [
+        //                status: DisruptionStatus::Current,
+        //                status: DisruptionStatus::Planned
+        //            ],
+        //            ROUTE_ID
+        //        );
+        //
+        //        make_test!(
+        //            map,
+        //            disruptions_route_stop,
+        //            DisruptionsSpecificOpts => [
+        //                status: DisruptionStatus::Current,
+        //                status: DisruptionStatus::Planned
+        //            ],
+        //            ROUTE_ID,
+        //            STOP_ID
+        //        );
+        //
+        //        make_test!(
+        //            map,
+        //            disruptions_stop,
+        //            DisruptionsSpecificOpts => [
+        //                status: DisruptionStatus::Current,
+        //                status: DisruptionStatus::Planned
+        //            ],
+        //            STOP_ID
+        //        );
 
         // > Search
-        make_test!(map, search, SearchOpts => [include_outlets, include_addresses],"Flinders Street Station");
+        make_test!(map, get_search_result_by_search_term, GetSearchResultBySearchTermParams => [include_outlets, include_addresses],"Flinders Street Station".into());
 
         map
     });

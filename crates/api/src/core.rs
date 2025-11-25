@@ -20,14 +20,16 @@ use anyhow::Error;
 
 #[derive(SwaggerClient)]
 #[swagger(
-    path = "v3"
-    strip_prefix = "V3."
+    path = "v3",
+    strip_prefix = "V3.",
+    extra_names = [("RouteType", "ty::RouteType")],
+    skip = ["signature"]
 )]
 pub struct Client {
     #[swagger(static)]
     devid: String,
     #[swagger(static)]
-    key: String,
+    token: String,
 }
 pub fn to_query<T: Serialize>(s: T) -> String {
     serde_json::to_value(s)
@@ -59,12 +61,13 @@ pub fn to_query<T: Serialize>(s: T) -> String {
 }
 
 impl Client {
-    pub fn new(devid: String, key: String) -> Self {
-        Self { devid, key }
+    pub fn new(devid: String, token: String) -> Self {
+        Self { devid, token }
     }
     pub async fn rq<T: DeserializeOwned>(&self, path: String) -> Result<T> {
+        println!("Request path: {}", path);
         let path = format!(
-            "/{path}{}devid={}",
+            "{path}{}devid={}",
             {
                 if !path.contains('?') {
                     "?"
@@ -77,7 +80,7 @@ impl Client {
             self.devid
         );
 
-        let mut hasher: PtvHmac = Hmac::new_from_slice(self.key.as_bytes()).unwrap();
+        let mut hasher: PtvHmac = Hmac::new_from_slice(self.token.as_bytes()).unwrap();
         hasher.update(path.as_bytes());
 
         let hash = hex::encode(hasher.finalize().into_bytes());

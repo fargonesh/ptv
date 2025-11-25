@@ -3,19 +3,23 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc, str::FromStr};
 use heck::{ToSnakeCase, ToUpperCamelCase};
 use itertools::Itertools;
 use quote::quote;
-use syn::{DeriveInput, parse::Parse};
+use syn::{DataStruct, DeriveInput, parse::Parse, spanned::Spanned};
 
 use crate::types::{Context, SwaggerFile, ToRustTypeName, TypePath};
 
 struct SwaggerClientArgs {
     path: String,
     strip_prefix: Option<String>,
+    skipped: Vec<String>,
+    extra_names: HashMap<String, String>,
 }
 
 impl Parse for SwaggerClientArgs {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let mut path = None;
         let mut strip_prefix = None;
+        let mut extra_names = None;
+        let mut skipped = Vec::new();
 
         while !input.is_empty() {
             let ident: syn::Ident = input.parse()?;
@@ -29,6 +33,64 @@ impl Parse for SwaggerClientArgs {
                 "strip_prefix" => {
                     let lit: syn::LitStr = input.parse()?;
                     strip_prefix = Some(lit.value());
+                }
+                "skip" => {
+                    let skips: syn::ExprArray = input.parse()?;
+                    for expr in skips.elems.iter() {
+                        if let syn::Expr::Lit(syn::ExprLit {
+                            lit: syn::Lit::Str(lit),
+                            ..
+                        }) = expr
+                        {
+                            skipped.push(lit.value());
+                        } else {
+                            return Err(syn::Error::new(
+                                expr.span(),
+                                "Expected string literals in skip array",
+                            ));
+                        }
+                    }
+
+                    // Ignore the value for now
+                }
+                "extra_names" => {
+                    let map: syn::ExprArray = input.parse()?;
+                    let mut names_map = HashMap::new();
+                    for expr in map.elems.iter() {
+                        if let syn::Expr::Tuple(tuple) = expr {
+                            if tuple.elems.len() == 2 {
+                                if let (
+                                    syn::Expr::Lit(syn::ExprLit {
+                                        lit: syn::Lit::Str(lit1),
+                                        ..
+                                    }),
+                                    syn::Expr::Lit(syn::ExprLit {
+                                        lit: syn::Lit::Str(lit2),
+                                        ..
+                                    }),
+                                ) = (&tuple.elems[0], &tuple.elems[1])
+                                {
+                                    names_map.insert(lit1.value(), lit2.value());
+                                } else {
+                                    return Err(syn::Error::new(
+                                        tuple.span(),
+                                        "Expected string literals in extra_names tuples",
+                                    ));
+                                }
+                            } else {
+                                return Err(syn::Error::new(
+                                    tuple.span(),
+                                    "Expected tuples of length 2 in extra_names",
+                                ));
+                            }
+                        } else {
+                            return Err(syn::Error::new(
+                                expr.span(),
+                                "Expected tuples in extra_names array",
+                            ));
+                        }
+                    }
+                    extra_names = Some(names_map);
                 }
                 _ => {
                     return Err(syn::Error::new(
@@ -45,7 +107,12 @@ impl Parse for SwaggerClientArgs {
 
         let path = path.ok_or_else(|| syn::Error::new(input.span(), "Missing 'path' argument"))?;
 
-        Ok(SwaggerClientArgs { path, strip_prefix })
+        Ok(SwaggerClientArgs {
+            path,
+            strip_prefix,
+            skipped,
+            extra_names: extra_names.unwrap_or_default(),
+        })
     }
 }
 
@@ -57,7 +124,20 @@ fn derive_actual(
 ) -> anyhow::Result<proc_macro::TokenStream> {
     let mut deserializer =
         serde_json::Deserializer::from_reader(std::fs::File::open(&args.path).unwrap());
+    let mut constant_parameters = Vec::new();
+    constant_parameters.extend(args.skipped);
 
+    if let syn::Data::Struct(strukt) = &input.data {
+        strukt.fields.iter().for_each(|field| {
+            let field_name = field.ident.as_ref().unwrap().to_string();
+            field
+                .attrs
+                .iter()
+                .find(|attr| attr.path().is_ident("swagger"));
+            constant_parameters.push(field_name);
+        });
+    }
+    println!("Constant parameters: {:?}", &constant_parameters);
     let result: SwaggerFile = match serde_path_to_error::deserialize(&mut deserializer) {
         Ok(v) => v,
         Err(e) => {
@@ -81,16 +161,13 @@ fn derive_actual(
             )
         })
         .collect::<std::collections::HashMap<TypePath, String>>();
-    let extra_names = vec![("RouteType".to_string(), "ty::RouteType".to_string())]
-        .into_iter()
-        .collect::<HashMap<_, _>>();
     let context = Rc::new(Context {
         scope: std::cell::RefCell::new(codegen::Scope::new()),
-        constant_parameters: HashMap::new(),
+        constant_parameters,
         strip_prefix: args.strip_prefix.clone(),
         types: names,
         extra_name: Default::default(),
-        extra_types: RefCell::new(extra_names),
+        extra_types: RefCell::new(args.extra_names),
     });
     for (name, ty) in &result.definitions {
         let context = context.clone();
@@ -145,6 +222,7 @@ fn derive_actual(
                 .parameters
                 .path
                 .iter()
+                .filter(|param| !context.constant_parameters.contains(&param.name))
                 .map(|param| {
                     let param_name = param.name.to_snake_case();
                     let _name_handle = context.handle_with_name(param_name.clone());
@@ -162,6 +240,7 @@ fn derive_actual(
                 .parameters
                 .query
                 .iter()
+                .filter(|param| !context.constant_parameters.contains(&param.name))
                 .map(|param| {
                     let context = context.clone();
                     let param_name = param.name.to_snake_case();
@@ -174,6 +253,7 @@ fn derive_actual(
                     let mut field =
                         codegen::Field::new(&param_name, format!("Option<{}>", rust_type));
                     field.vis("pub");
+                    field.annotation("#[serde(skip_serializing_if = \"Option::is_none\")]");
                     field
                 })
                 .collect_vec();
@@ -218,11 +298,20 @@ fn derive_actual(
             // Take path parameters and pass them from elements
             // find each `{param}` in path and replace with `{param}` but in snake_case and not using the elements but internal
             let mut path_name = path_name.clone();
-            for (param_name, _, original_name) in path_params {
+            for (param_name, ty, original_name) in path_params {
                 let to_replace = format!("{{{}}}", original_name);
-                let replacement = format!("{{{}}}", param_name);
+                let replacement = if ty == "String" {
+                    func.line(format!(
+                        "let {0} =  url_escape::encode_path(&clean({0}.to_owned())).into_owned();",
+                        &param_name
+                    ));
+                    format!("{{{}}}", param_name)
+                } else {
+                    format!("{{{}}}", param_name)
+                };
                 path_name.internal = path_name.internal.replace(&to_replace, &replacement);
             }
+            println!("Generating function: {}", path_name.internal);
 
             func.line(format!("let path = format!(\"{}\");", &path_name.internal));
             func.line("self.rq(format!(\"{}?{}\", path, to_query(params))).await");
