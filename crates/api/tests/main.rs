@@ -26,7 +26,10 @@ pub mod test {
 
     // TODO: Find sensible constants
     static ROUTE_TYPE: RouteType = RouteType::Train; // Train
-    static ROUTE_ID: i32 = 1; // Alamein (Line)
+    static ROUTE_ID: Lazy<String> = Lazy::new(|| {
+        // Alamein (Line)
+        "1".to_string()
+    });
     static STOP_ID: i32 = 1002; // Alamein (Station)
     static DIRECTION_ID: i32 = 1; // Towards Flinders Street
     static RUN_REF: &str = "1"; // Alamein something
@@ -44,14 +47,13 @@ pub mod test {
             ROUTE_TYPE,
             STOP_ID
         );
-
         //        make_test!(
         //            map,
-        //            get_departures_by_route_type_and_route_id_and_stop_id,
-        //            DeparturesStopRouteOpts => [[max_results: 10, look_backwards: true],gtfs,include_cancelled],
+        //            get_departures_by_route_type_and_stop_id_and_route_id,
+        //            GetDeparturesByRouteTypeAndStopIdAndRouteIdParams => [[max_results: 10, look_backwards: true],gtfs,include_cancelled],
         //            ROUTE_TYPE,
-        //            ROUTE_ID,
-        //            STOP_ID
+        //            STOP_ID,
+        //            ROUTE_ID
         //        );
         //        // > Routes
         //        make_test!(

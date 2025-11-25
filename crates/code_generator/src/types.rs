@@ -208,7 +208,7 @@ impl ToRustTypeName for TypeTagged {
                         .context("Expected extra name for enum")?
                         .to_upper_camel_case();
 
-                    println!("Generating enum: {}", &enum_name);
+                    //println!("Generating enum: {}", &enum_name);
                     if let Some(enuma) = context.extra_types.borrow().get(&enum_name) {
                         return Ok(enuma.clone());
                     } else {
@@ -333,6 +333,8 @@ impl ToRustTypeName for TypeTagged {
                             } else {
                                 codegen::Field::new(&field_name, format!("Option<{}>", rust_type))
                             };
+                            field.vis("pub");
+
                             if rename_to != &field_name {
                                 field.annotation(format!(r#"#[serde(rename = "{}")]"#, rename_to));
                             }
@@ -346,6 +348,15 @@ impl ToRustTypeName for TypeTagged {
                             "additional_properties",
                             format!("std::collections::HashMap<String, {}>", typea),
                         );
+                        field.vis("pub");
+                        field.annotation(r#"#[serde(flatten)]"#);
+                        strukt.push_field(field);
+                    } else {
+                        let mut field = codegen::Field::new(
+                            "additional_properties",
+                            "std::collections::HashMap<String, serde_json::Value>".to_string(),
+                        );
+                        field.vis("pub");
                         field.annotation(r#"#[serde(flatten)]"#);
                         strukt.push_field(field);
                     }

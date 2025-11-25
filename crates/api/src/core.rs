@@ -1,4 +1,6 @@
 #![cfg(not(target_arch = "wasm32"))]
+use std::{collections::HashMap, fmt::Debug};
+
 use {
     crate::*,
     anyhow::Result,
@@ -22,7 +24,7 @@ use anyhow::Error;
 #[swagger(
     path = "v3",
     strip_prefix = "V3.",
-    extra_names = [("RouteType", "ty::RouteType")],
+    extra_names = [("RouteType", "ty::RouteType"), ("Health", "i8")],
     skip = ["signature"]
 )]
 pub struct Client {
@@ -64,7 +66,7 @@ impl Client {
     pub fn new(devid: String, token: String) -> Self {
         Self { devid, token }
     }
-    pub async fn rq<T: DeserializeOwned>(&self, path: String) -> Result<T> {
+    pub async fn rq<T: DeserializeOwned + Debug>(&self, path: String) -> Result<T> {
         println!("Request path: {}", path);
         let path = format!(
             "{path}{}devid={}",
@@ -83,11 +85,11 @@ impl Client {
         let mut hasher: PtvHmac = Hmac::new_from_slice(self.token.as_bytes()).unwrap();
         hasher.update(path.as_bytes());
 
-        let hash = hex::encode(hasher.finalize().into_bytes());
+        let hash = hex::encode(hasher.finalize().into_bytes()).to_uppercase();
         let url = format!("{API_URL}{}&signature={}", path, hash);
 
         if std::env::var("DEBUG").is_ok() {
-            println!("Requesting: {}", url);
+            println!("Requesting: |{}|", url);
         }
 
         let res = reqwest::get(&url).await?;
@@ -98,7 +100,12 @@ impl Client {
             }
             return Err(anyhow::anyhow!("Request failed: {}", status));
         }
+        //        println!("{}", res.text().await?);
+        let res = res.text().await?;
+        let mut deserializer = serde_json::Deserializer::from_str(&res);
 
-        Ok(res.json().await?)
+        let res: T = serde_path_to_error::deserialize(&mut deserializer)
+            .map_err(|e| anyhow::anyhow!("Error at path: {} - response: {}", e.path(), res))?;
+        Ok(res)
     }
 }
