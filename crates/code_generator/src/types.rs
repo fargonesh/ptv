@@ -16,6 +16,21 @@ macro_rules! context {
     };
 }
 
+macro_rules! enm_opts {
+    ($e:expr) => {
+        struc_opts!($e);
+        $e.derive("Display");
+    };
+}
+macro_rules! struc_opts {
+    ($e:expr) => {
+        $e.vis("pub");
+        $e.derive("Debug");
+        $e.derive("Serialize");
+        $e.derive("Deserialize");
+    };
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
 pub struct TypePath(pub String);
 
@@ -169,9 +184,7 @@ impl ToRustTypeName for TypeTagged {
                     .unwrap_or(Ok("f64".to_string()))?;
                 if let Some(en) = r#enum {
                     let enum_name = context
-                        .name_stack
-                        .borrow_mut()
-                        .front()
+                        .get_top_name()
                         .context("Expected extra name for enum")?
                         .to_upper_camel_case();
                     if let Some(enuma) = context.extra_types.get(&enum_name) {
@@ -180,11 +193,7 @@ impl ToRustTypeName for TypeTagged {
                         let enum_name = context.get_name();
                         context!(context, scope);
                         let enm = scope.new_enum(&enum_name);
-                        enm.vis("pub");
-                        enm.derive("Debug");
-                        enm.derive("Serialize");
-                        enm.derive("Deserialize");
-                        enm.derive("Display");
+                        enm_opts!(enm);
                         enm.repr(&format);
                         // FIXME: make enums not crazy
                         for variant in en {
@@ -209,9 +218,7 @@ impl ToRustTypeName for TypeTagged {
                     .unwrap_or(Ok("i64".to_string()))?;
                 if let Some(en) = r#enum {
                     let enum_name = context
-                        .name_stack
-                        .borrow_mut()
-                        .front()
+                        .get_top_name()
                         .context("Expected extra name for enum")?
                         .to_upper_camel_case();
 
@@ -224,11 +231,7 @@ impl ToRustTypeName for TypeTagged {
                         let new_enum_name = format!("{}Enum", enum_name);
                         //                        println!("Generating enum: {}", &new_enum_name);
                         let enm = scope.new_enum(&new_enum_name);
-                        enm.vis("pub");
-                        enm.derive("Debug");
-                        enm.derive("Serialize");
-                        enm.derive("Deserialize");
-                        enm.derive("Display");
+                        enm_opts!(enm);
                         enm.repr(&format);
 
                         for variant in en {
@@ -248,7 +251,11 @@ impl ToRustTypeName for TypeTagged {
                 format: Some(x), ..
             } => {
                 if let "date-time" = x.as_str() {
-                    Ok("chrono::DateTime<chrono::Utc>".to_string())
+                    Ok(context
+                        .extra_types
+                        .get("DateTime")
+                        .cloned()
+                        .unwrap_or("chrono::NaiveDateTime".to_string()))
                 } else if let "date" = x.as_str() {
                     Ok("chrono::NaiveDate".to_string())
                 } else {
@@ -259,9 +266,7 @@ impl ToRustTypeName for TypeTagged {
             TypeTagged::String { r#enum, .. } => {
                 if let Some(en) = r#enum {
                     let enum_name = context
-                        .name_stack
-                        .borrow_mut()
-                        .front()
+                        .get_top_name()
                         .context("Expected extra name for enum")?
                         .to_upper_camel_case();
                     if let Some(enuma) = context.extra_types.get(&enum_name) {
@@ -271,12 +276,7 @@ impl ToRustTypeName for TypeTagged {
                         context!(context, scope);
                         //                        println!("Generating enum: {}", &enum_name);
                         let enm = scope.new_enum(&enum_name);
-                        enm.vis("pub");
-                        enm.derive("Debug");
-                        enm.derive("Serialize");
-                        enm.derive("Deserialize");
-                        enm.derive("Display");
-                        enm.repr("String");
+                        enm_opts!(enm);
 
                         for variant in en {
                             let variant_name = if variant.chars().next().unwrap().is_numeric() {
@@ -312,6 +312,11 @@ impl ToRustTypeName for TypeTagged {
             }
             TypeTagged::Object {
                 properties: None,
+                additional_properties: None,
+                ..
+            } => Ok("std::collections::HashMap<String,serde_json::Value>".to_string()),
+            TypeTagged::Object {
+                properties: None,
                 additional_properties: Some(prop),
                 ..
             } => Ok(format!(
@@ -325,9 +330,7 @@ impl ToRustTypeName for TypeTagged {
                 required,
             } => {
                 let struct_name = context
-                    .name_stack
-                    .borrow_mut()
-                    .front()
+                    .get_top_name()
                     .context("Expected extra name for object")?
                     .to_upper_camel_case();
                 if let Some(structa) = context.extra_types.get(&struct_name) {
@@ -336,10 +339,7 @@ impl ToRustTypeName for TypeTagged {
                     let struct_name = context.get_name();
                     //                    println!("Generating struct: {}", struct_name);
                     let mut strukt = codegen::Struct::new(&struct_name);
-                    strukt.vis("pub");
-                    strukt.derive("Debug");
-                    strukt.derive("Serialize");
-                    strukt.derive("Deserialize");
+                    struc_opts!(strukt);
 
                     if let Some(props) = properties {
                         for (prop_name, prop_type) in props {
@@ -381,15 +381,15 @@ impl ToRustTypeName for TypeTagged {
                         field.vis("pub");
                         field.annotation(r#"#[serde(flatten)]"#);
                         strukt.push_field(field);
-                    } else {
-                        let mut field = codegen::Field::new(
-                            "additional_properties",
-                            "std::collections::HashMap<String, serde_json::Value>".to_string(),
-                        );
-                        field.vis("pub");
-                        field.annotation(r#"#[serde(flatten)]"#);
-                        strukt.push_field(field);
-                    }
+                    } // else {
+                    //   let mut field = codegen::Field::new(
+                    //       "additional_properties",
+                    //       "std::collections::HashMap<String, serde_json::Value>".to_string(),
+                    //   );
+                    //   field.vis("pub");
+                    //   field.annotation(r#"#[serde(flatten)]"#);
+                    //   strukt.push_field(field);
+
                     {
                         context!(context, scope);
                         scope.push_struct(strukt);

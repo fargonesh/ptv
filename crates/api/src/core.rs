@@ -20,13 +20,20 @@ type PtvHmac = Hmac<Sha1>;
 use anyhow::Error;
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Modes(#[serde(serialize_with = "ser_disruption_query")] pub Option<Vec<DisruptionMode>>);
+pub struct Modes(#[serde(serialize_with = "ser_disruption_query")] pub DisruptionMode);
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(untagged)]
+pub enum DateTime {
+    Naive(chrono::NaiveDateTime),
+    WithTz(chrono::DateTime<chrono::Utc>),
+}
 
 #[derive(SwaggerClient)]
 #[swagger(
     path = "v3",
     strip_prefix = "V3.",
-    extra_names = [("RouteType", "crate::ty::RouteType"), ("Status", "crate::ty::Status"), ("Expand", "Vec<crate::ty::ExpandOptions>"), ("ServiceOperator", "crate::ty::ServiceOperator"), ("DisruptionStatus", "crate::ty::DisruptionStatus"), ("Geopath", "Option<crate::ty::Geopath>"),("RouteId", "crate::ty::RouteId"),("StopId", "crate::ty::StopId"),("RunId", "crate::ty::RunId"),("DirectionId", "crate::ty::DirectionId"),("DisruptionId", "crate::ty::DisruptionId"), ("DisruptionMode", "crate::ty::DisruptionMode"), ("DisruptionModes", "crate::core::Modes")],
+    extra_names = [("RouteType", "crate::ty::RouteType"), ("Status", "crate::ty::Status"), ("Expand", "Vec<crate::ty::ExpandOptions>"), ("ServiceOperator", "crate::ty::ServiceOperator"), ("DisruptionStatus", "crate::ty::DisruptionStatus"), ("Geopath", "Option<crate::ty::Geopath>"),("RouteId", "crate::ty::RouteId"),("StopId", "crate::ty::StopId"),("RunId", "crate::ty::RunId"),("DirectionId", "crate::ty::DirectionId"),("DisruptionId", "crate::ty::DisruptionId"), ("DisruptionMode", "crate::ty::DisruptionMode"), ("DisruptionModes", "crate::core::Modes"), ("DateTime", "crate::core::DateTime")],
     skip = ["signature"]
 )]
 pub struct Client {

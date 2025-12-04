@@ -293,10 +293,8 @@ fn derive_actual(
                     let func_params = scope
                         .new_struct(&obj_params_name)
                         .vis("pub")
-                        .derive("Debug")
-                        .derive("Serialize")
-                        .derive("Deserialize")
                         .derive("Default");
+                    struc_opts!(func_params);
                     for field in obj_params {
                         func_params.push_field(field);
                     }
@@ -340,8 +338,6 @@ fn derive_actual(
                     format!("{}::{}", "generated_types", func_param_name),
                 );
             }
-            // Take path parameters and pass them from elements
-            // find each `{param}` in path and replace with `{param}` but in snake_case and not using the elements but internal
             let mut path_name = path_name.clone();
             for (param_name, ty, original_name) in path_params {
                 let to_replace = format!("{{{}}}", original_name);

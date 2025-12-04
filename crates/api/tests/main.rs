@@ -36,93 +36,37 @@ pub mod test {
         Arc<dyn Fn() -> Pin<Box<dyn Future<Output = anyhow::Result<String>>>> + Send + Sync>;
     pub static TASKS: Lazy<BTreeMap<&str, Task>> = Lazy::new(|| {
         let mut map = BTreeMap::<&str, Task>::new();
-
-        // > Departures
-        make_test!(
-            map,
-             get_departures_by_route_type_and_stop_id,
-            GetDeparturesByRouteTypeAndStopIdParams => [gtfs,include_cancelled],
-            ROUTE_TYPE,
-            STOP_ID
-        );
-
-        make_test!(
-            map,
-            get_departures_by_route_type_and_stop_id_and_route_id,
-            GetDeparturesByRouteTypeAndStopIdAndRouteIdParams => [[max_results: 10, look_backwards: true],gtfs,include_cancelled],
-            ROUTE_TYPE,
-            STOP_ID,
-            ROUTE_ID
-        );
-        make_test!(
-            map,
-            get_runs_by_run_ref,
-            GetRunsByRunRefParams => [include_geopath, expand: vec![ty::ExpandOptions::All], include_advertised_interchange],
-            RUN_REF
-        );
-
-        // > Routes
-        make_test!(
-            map,
-            get_routes,
-            GetRoutesParams =>  [route_types: vec![RouteType::Train]]
-        );
-
-        make_test!(map, get_route_by_route_id,  GetRouteByRouteIdParams => [include_geopath], ROUTE_ID);
-
-        // > Patterns
-        make_test!(map, get_stopping_pattern_by_run_ref_and_route_type, GetStoppingPatternByRunRefAndRouteTypeParams  => [stop_id: STOP_ID, expand: vec![ty::ExpandOptions::All], include_skipped_stops, include_geopath], RUN_REF, ROUTE_TYPE);
-
-        // > Directions
-
+        make_test!(map, get_departures_by_route_type_and_stop_id, GetDeparturesByRouteTypeAndStopIdParams => [ gtfs, include_cancelled], ROUTE_TYPE, STOP_ID );
+        make_test!(map, get_departures_by_route_type_and_stop_id_and_route_id, GetDeparturesByRouteTypeAndStopIdAndRouteIdParams => [ gtfs, include_cancelled], ROUTE_TYPE, STOP_ID, ROUTE_ID );
         make_test!(map, get_directions_by_direction_id, DIRECTION_ID);
-
-        make_test!(map, get_directions_by_route_id, ROUTE_ID);
         make_test!(
             map,
             get_directions_by_direction_id_and_route_type,
             DIRECTION_ID,
             ROUTE_TYPE
         );
-
-        // > Disruptions
-
-        make_test!(map, get_disruptions, GetDisruptionsParams => [disruption_modes: Modes(Some(vec![DisruptionMode::MetroTrain])), disruption_modes: Modes(Some(vec![DisruptionMode::MetroBus]))]);
-
-        make_test!(
-            map,
-            get_disruptions_by_route_id,
-            GetDisruptionsByRouteIdParams => [
-                disruption_status: DisruptionStatus::Current,
-                disruption_status: DisruptionStatus::Planned
-            ],
-            ROUTE_ID
-        );
-
-        make_test!(
-            map,
-            get_disruptions_by_route_id_and_stop_id,
-            GetDisruptionsByRouteIdAndStopIdParams => [
-                disruption_status: DisruptionStatus::Current,
-                disruption_status: DisruptionStatus::Planned
-            ],
-            ROUTE_ID,
-            STOP_ID
-        );
-
-        make_test!(
-            map,
-            get_disruptions_by_stop_id,
-            GetDisruptionsByStopIdParams => [
-                disruption_status: DisruptionStatus::Current,
-                disruption_status: DisruptionStatus::Planned
-            ],
-            STOP_ID
-        );
-
-        // > Search
-        make_test!(map, get_search_result_by_search_term, GetSearchResultBySearchTermParams => [include_outlets, include_addresses],"Flinders Street Station");
-
+        make_test!(map, get_directions_by_route_id, ROUTE_ID);
+        make_test!(map, get_disruption_by_disruption_id, DisruptionId(1));
+        make_test!(map, get_disruptions, GetDisruptionsParams => [ route_types: vec![RouteType::Train] ]);
+        make_test!(map, get_disruptions_by_route_id, GetDisruptionsByRouteIdParams => [ disruption_status: DisruptionStatus::Planned ], ROUTE_ID);
+        make_test!(map, get_disruptions_by_route_id_and_stop_id, GetDisruptionsByRouteIdAndStopIdParams => [ disruption_status: DisruptionStatus::Planned ], ROUTE_ID, STOP_ID);
+        make_test!(map, get_disruptions_by_stop_id, GetDisruptionsByStopIdParams => [ disruption_status: DisruptionStatus::Planned ], STOP_ID);
+        // make_test!(map, get_disruptions_modes);
+        make_test!(map, get_fare_estimate_by_min_zone_and_max_zone,GetFareEstimateByMinZoneAndMaxZoneParams => [ is_journey_in_free_tram_zone ], 1, 2);
+        make_test!(map, get_outlet_geolocation_by_latitude_and_longitude, GetOutletGeolocationByLatitudeAndLongitudeParams => [ max_results: 20, max_distance: 30.0 ], -37.8100, 144.9620);
+        make_test!(map, get_outlets, GetOutletsParams => [ max_results: 20 ]);
+        make_test!(map, get_route_by_route_id, GetRouteByRouteIdParams => [include_geopath], ROUTE_ID);
+        //   make_test!(map, get_route_types);
+        make_test!(map, get_routes, GetRoutesParams => [ route_types: vec![RouteType::Train], route_types: vec![RouteType::Bus], route_types: vec![RouteType::Tram] ]);
+        make_test!(map, get_run_by_run_ref_and_route_type, GetRunByRunRefAndRouteTypeParams => [expand: vec![ExpandOptions::All]], RUN_REF, ROUTE_TYPE);
+        //make_test!(map, get_runs_by_route_id, GetRunsByRouteIdParams => [ expand: vec![ExpandOptions::Direction] ], ROUTE_ID);
+        //make_test!(map, get_runs_by_route_id_and_route_type, GetRunsByRouteIdAndRouteTypeParams => [ expand: vec![ExpandOptions::Direction] ], ROUTE_ID, ROUTE_TYPE);
+        make_test!(map, get_runs_by_run_ref, GetRunsByRunRefParams => [ expand: vec![ExpandOptions::All] ], RUN_REF);
+        make_test!(map, get_search_result_by_search_term, GetSearchResultBySearchTermParams => [ route_types: vec![RouteType::Train] ], "Flinders Street");
+        make_test!(map, get_stop_by_stop_id_and_route_type, GetStopByStopIdAndRouteTypeParams => [ stop_location, stop_amenities  ], STOP_ID, ROUTE_TYPE);
+        make_test!(map, get_stopping_pattern_by_run_ref_and_route_type, GetStoppingPatternByRunRefAndRouteTypeParams => [ expand: vec![ExpandOptions::All] ], RUN_REF, ROUTE_TYPE);
+        make_test!(map, get_stops_by_distance_by_latitude_and_longitude, GetStopsByDistanceByLatitudeAndLongitudeParams => [ max_results: 20, max_distance: 30.0 ], -37.8100, 144.9620);
+        make_test!(map, get_stops_on_route_by_route_id_and_route_type, GetStopsOnRouteByRouteIdAndRouteTypeParams => [ include_geopath ], ROUTE_ID, ROUTE_TYPE);
         map
     });
 

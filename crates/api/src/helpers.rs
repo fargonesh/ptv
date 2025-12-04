@@ -51,14 +51,11 @@ where
         .map_err(|e| serde::de::Error::custom(format!("Error deser iso_8601 '{s}': {e:?}")))
 }
 
-pub fn ser_iso_8601<S>(date: &Option<NaiveDateTime>, serializer: S) -> Result<S::Ok, S::Error>
+pub fn ser_iso_8601<S>(date: &NaiveDateTime, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
 {
-    match date {
-        Some(date) => serializer.serialize_str(&date.format("%Y-%m-%dT%H:%M:%S").to_string()),
-        None => serializer.serialize_none(),
-    }
+    serializer.serialize_str(&date.format("%Y-%m-%dT%H:%M:%S").to_string())
 }
 
 /// 24 hour clock format (HH:MM:SS) AEDT/AEST
@@ -206,16 +203,13 @@ where
 }
 
 pub fn ser_disruption_query<S>(
-    disruption: &Option<Vec<DisruptionMode>>,
+    disruption: &DisruptionMode,
     serializer: S,
 ) -> Result<S::Ok, S::Error>
 where
     S: ser::Serializer,
 {
-    match disruption {
-        Some(disruption) => serializer.collect_seq(disruption.iter().map(|d| d.as_number())),
-        None => serializer.serialize_none(),
-    }
+    disruption.as_number().serialize(serializer)
 }
 
 pub fn de_string_as_i32<'de, D>(deserializer: D) -> Result<i32, D::Error>
