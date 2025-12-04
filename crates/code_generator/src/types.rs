@@ -5,11 +5,7 @@ use itertools::Itertools;
 use numerics::ToPrimitive;
 use serde::{Deserialize, Serialize};
 
-use std::{
-    cell::RefCell,
-    collections::VecDeque,
-    rc::Rc,
-};
+use std::{cell::RefCell, collections::VecDeque, rc::Rc};
 
 macro_rules! context {
     ($e:expr,$id:ident) => {
@@ -149,6 +145,7 @@ pub enum TypeTagged {
 
     String {
         r#enum: Option<Vec<String>>,
+        format: Option<String>,
     },
     Boolean,
     Array {
@@ -247,8 +244,19 @@ impl ToRustTypeName for TypeTagged {
                     Ok(format)
                 }
             }
+            TypeTagged::String {
+                format: Some(x), ..
+            } => {
+                if let "date-time" = x.as_str() {
+                    Ok("chrono::DateTime<chrono::Utc>".to_string())
+                } else if let "date" = x.as_str() {
+                    Ok("chrono::NaiveDate".to_string())
+                } else {
+                    Ok("String".to_string())
+                }
+            }
             // TODO: Handle enums properly
-            TypeTagged::String { r#enum } => {
+            TypeTagged::String { r#enum, .. } => {
                 if let Some(en) = r#enum {
                     let enum_name = context
                         .name_stack
@@ -302,6 +310,14 @@ impl ToRustTypeName for TypeTagged {
                     items.schema_object.to_rust_type_name(context.clone())?
                 ))
             }
+            TypeTagged::Object {
+                properties: None,
+                additional_properties: Some(prop),
+                ..
+            } => Ok(format!(
+                "std::collections::HashMap<String, {}>",
+                prop.schema_object.to_rust_type_name(context.clone())?
+            )),
             // TODO: Implement proper object handling
             TypeTagged::Object {
                 properties,
@@ -345,6 +361,9 @@ impl ToRustTypeName for TypeTagged {
                                 codegen::Field::new(&field_name, format!("Option<{}>", rust_type))
                             };
                             field.vis("pub");
+                            if let Some(description) = &prop_type.description {
+                                field.doc(description);
+                            }
 
                             if rename_to != &field_name {
                                 field.annotation(format!(r#"#[serde(rename = "{}")]"#, rename_to));
@@ -502,7 +521,6 @@ mod locations {
 }
 
 pub use locations::{AsInLocation, InLocation};
-
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Parameter<T>

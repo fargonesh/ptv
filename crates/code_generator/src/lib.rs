@@ -277,6 +277,9 @@ fn derive_actual(
                     let mut field =
                         codegen::Field::new(&param_name, format!("Option<{}>", rust_type));
                     field.vis("pub");
+                    if let Some(ref docs) = param.description {
+                        field.doc(docs);
+                    }
                     field.annotation("#[serde(skip_serializing_if = \"Option::is_none\")]");
                     field
                 })
