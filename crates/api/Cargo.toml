@@ -30,6 +30,7 @@ to_and_fro = "0.7.1"
 url-escape = "0.1.1"
 code_generator = { path = "../code_generator" }
 serde_path_to_error = "0.1.20"
+serde_repr = "0.1.20"
 
 [dev-dependencies]
 futures = "0.3.30"

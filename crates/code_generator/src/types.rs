@@ -18,7 +18,10 @@ macro_rules! context {
 
 macro_rules! enm_opts {
     ($e:expr) => {
-        struc_opts!($e);
+        $e.vis("pub");
+        $e.derive("Debug");
+        $e.derive("Serialize_repr");
+        $e.derive("Deserialize_repr");
         $e.derive("Display");
     };
 }

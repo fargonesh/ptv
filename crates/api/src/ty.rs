@@ -8,6 +8,7 @@ use chrono::NaiveDate;
 use derive_more::{Display, From};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+use serde_repr::{Deserialize_repr, Serialize_repr};
 use std::str::FromStr;
 use to_and_fro::ToAndFro;
 
@@ -59,7 +60,7 @@ pub struct Geopath {
 } // TODO: T
 
 /// Types of routes
-#[derive(Debug, Copy, Clone, Display, From, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Copy, Clone, From, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(i8)]
 pub enum RouteType {
     /// Metropolitan train service
@@ -74,6 +75,12 @@ pub enum RouteType {
     NightBus = 4,
     /// Other Route Type
     Other(i8),
+}
+
+impl std::fmt::Display for RouteType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", i8::from(*self))
+    }
 }
 
 impl Serialize for RouteType {

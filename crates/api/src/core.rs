@@ -34,6 +34,7 @@ pub enum DateTime {
     path = "v3",
     strip_prefix = "V3.",
     extra_names = [("RouteType", "crate::ty::RouteType"), ("Status", "crate::ty::Status"), ("Expand", "Vec<crate::ty::ExpandOptions>"), ("ServiceOperator", "crate::ty::ServiceOperator"), ("DisruptionStatus", "crate::ty::DisruptionStatus"), ("Geopath", "Option<crate::ty::Geopath>"),("RouteId", "crate::ty::RouteId"),("StopId", "crate::ty::StopId"),("RunId", "crate::ty::RunId"),("DirectionId", "crate::ty::DirectionId"),("DisruptionId", "crate::ty::DisruptionId"), ("DisruptionMode", "crate::ty::DisruptionMode"), ("DisruptionModes", "crate::core::Modes"), ("DateTime", "crate::core::DateTime")],
+    path_skip = ["/v3/disruptions/modes", "/v3/routes/types"],
     skip = ["signature"]
 )]
 pub struct Client {
@@ -86,8 +87,14 @@ impl Client {
         let res = res.text().await?;
         let mut deserializer = serde_json::Deserializer::from_str(&res);
 
-        let res: T = serde_path_to_error::deserialize(&mut deserializer)
-            .map_err(|e| anyhow::anyhow!("Error at path: {} - response: {}", e.path(), res))?;
+        let res: T = serde_path_to_error::deserialize(&mut deserializer).map_err(|e| {
+            anyhow::anyhow!(
+                "Error at path: {} {} - response: {}",
+                e.path(),
+                e.inner(),
+                res
+            )
+        })?;
         Ok(res)
     }
 }

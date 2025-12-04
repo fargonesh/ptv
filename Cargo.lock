@@ -1379,6 +1379,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_path_to_error",
+ "serde_repr",
  "sha1",
  "to_and_fro",
  "tokio",

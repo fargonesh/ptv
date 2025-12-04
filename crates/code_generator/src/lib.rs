@@ -1,17 +1,19 @@
 use anyhow::Context as AnyhowContext;
 use std::{collections::HashMap, rc::Rc, str::FromStr};
 
-use heck::{ToSnakeCase, ToUpperCamelCase};
+use heck::{ToSnakeCase, ToTitleCase, ToUpperCamelCase};
 use itertools::Itertools;
 use syn::{DeriveInput, parse::Parse, spanned::Spanned};
+use std::io::Write;
 
-use crate::types::{Context, SwaggerFile, ToRustTypeName, TypePath};
+use crate::types::{Context, PathName, SwaggerFile, ToRustTypeName, TypePath};
 
 struct SwaggerClientArgs {
     path: String,
     strip_prefix: Option<String>,
     skipped: Vec<String>,
     extra_names: HashMap<String, String>,
+    path_skip: Vec<String>,
 }
 
 impl Parse for SwaggerClientArgs {
@@ -20,6 +22,7 @@ impl Parse for SwaggerClientArgs {
         let mut strip_prefix = None;
         let mut extra_names = None;
         let mut skipped = Vec::new();
+        let mut path_skip = Vec::new();
 
         while !input.is_empty() {
             let ident: syn::Ident = input.parse()?;
@@ -33,6 +36,24 @@ impl Parse for SwaggerClientArgs {
                 "strip_prefix" => {
                     let lit: syn::LitStr = input.parse()?;
                     strip_prefix = Some(lit.value());
+                }
+                "path_skip" => {
+                    let skips: syn::ExprArray = input.parse()?;
+                    for expr in skips.elems.iter() {
+                        if let syn::Expr::Lit(syn::ExprLit {
+                            lit: syn::Lit::Str(lit),
+                            ..
+                        }) = expr
+                        {
+                            path_skip.push(lit.value());
+                        } else {
+                            return Err(syn::Error::new(
+                                expr.span(),
+                                "Expected string literals in path_skip array",
+                            ));
+                        }
+                    }
+                    // Ignore the value for now
                 }
                 "skip" => {
                     let skips: syn::ExprArray = input.parse()?;
@@ -109,6 +130,7 @@ impl Parse for SwaggerClientArgs {
 
         Ok(SwaggerClientArgs {
             path,
+            path_skip,
             strip_prefix,
             skipped,
             extra_names: extra_names.unwrap_or_default(),
@@ -123,6 +145,18 @@ fn derive_actual(
     input: DeriveInput,
     args: SwaggerClientArgs,
 ) -> anyhow::Result<proc_macro::TokenStream> {
+    let debug_output_file = option_env!("DOC_FILE");
+    println!("DOC_FILE: {:?}", debug_output_file);
+    let mut debug_file = if let Some(file) = debug_output_file {
+        Some(std::fs::File::create(file)?)
+    } else {
+        None
+    };
+    if let Some(ref mut debug_file) = debug_file {
+        use std::io::Write;
+        writeln!(debug_file, "# Swagger Client Generation Debug Output").ok();
+    }
+
     let mut deserializer =
         serde_json::Deserializer::from_reader(std::fs::File::open(&args.path).unwrap());
     let mut constant_parameters = Vec::new();
@@ -176,6 +210,8 @@ fn derive_actual(
         let mut scope = context.scope.borrow_mut();
         module.import("serde", "Serialize");
         module.import("serde", "Deserialize");
+        module.import("serde_repr", "Deserialize_repr");
+        module.import("serde_repr", "Serialize_repr");
         module.import("derive_more", "Display");
         module.vis("pub");
         scope.push_module(module.clone());
@@ -193,172 +229,206 @@ fn derive_actual(
     let paths = result
         .paths
         .into_iter()
-        .map(|(mut k, v)| {
+        .filter_map(|(mut k, v)| {
+            if args.path_skip.contains(&k.internal) {
+                return None;
+            }
             k.elements.pop_front();
-            (k, v)
+            Some((k, v))
         })
+        .into_grouping_map_by(|(k, _)| k.elements.front().unwrap().clone().to_string())
         .collect::<HashMap<_, _>>();
+if let Some(ref mut debug_file) = debug_file {
+        use std::io::Write;
+writeln!(debug_file, 
+    r#"| Feature           | Endpoint                                                                                                                     | Status | Notes                             |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------ | --------------------------------- |"#).ok();
+    }
+    for (section, paths) in paths {
 
-    for (path_name, path_item) in paths {
-        //        println!("path_name: {:?}", path_name);
-        for (method, operation) in &path_item.methods {
-            let ret_type = operation
-                .responses
-                .get("200")
-                .unwrap()
-                .schema
-                .as_ref()
-                .unwrap()
-                .schema_object
-                .to_rust_type_name(context.clone())?;
+        for (i,(path_name, path_item)) in paths.iter().enumerate() {
+            //        println!("path_name: {:?}", path_name);
+            for (method, operation) in &path_item.methods {
+                let ret_type = operation
+                    .responses
+                    .get("200")
+                    .unwrap()
+                    .schema
+                    .as_ref()
+                    .unwrap()
+                    .schema_object
+                    .to_rust_type_name(context.clone())?;
 
-            let name = if !operation.parameters.path.is_empty() {
-                let rust_type = ret_type.to_snake_case().replace("_response", "");
-                format!(
-                    "{}_{}_by_{}",
-                    method,
-                    rust_type,
-                    operation
-                        .parameters
-                        .path
-                        .iter()
-                        .map(|x| &x.name)
-                        .join("_and_")
-                )
-            } else {
-                format!("{}_{}", method, path_name.elements.iter().join("_"))
-            };
-            let _name = context.handle_with_name(name.clone());
-            let path_params = operation
-                .parameters
-                .path
-                .iter()
-                .filter(|param| !context.constant_parameters.contains(&param.name))
-                .map(|param| {
-                    let param_name = param.name.to_snake_case();
-                    let _name_handle = context.handle_with_name(param_name.clone());
-                    let rust_type = if let Some(ty) =
-                        context.extra_types.get(&param_name.to_upper_camel_case())
-                    {
-                        ty.clone()
-                    } else {
-                        param
-                            .r#type
-                            .schema_object
-                            .to_rust_type_name(context.clone())
-                            .unwrap()
-                    };
-
-                    (param_name, rust_type, param.name.clone())
-                })
-                .collect_vec();
-            let obj_params_name = format!("{}Params", name.to_upper_camel_case());
-            let _handle = context.handle_with_name(obj_params_name.clone());
-            let obj_params = operation
-                .parameters
-                .query
-                .iter()
-                .filter(|param| !context.constant_parameters.contains(&param.name))
-                .map(|param| {
-                    let context = context.clone();
-                    let param_name = param.name.to_snake_case();
-                    let _handle = context.handle_with_name(param_name.clone());
-                    let rust_type = if let Some(ty) =
-                        context.extra_types.get(&param_name.to_upper_camel_case())
-                    {
-                        ty.clone()
-                    } else {
-                        param
-                            .r#type
-                            .schema_object
-                            .to_rust_type_name(context.clone())
-                            .unwrap()
-                    };
-                    let mut field =
-                        codegen::Field::new(&param_name, format!("Option<{}>", rust_type));
-                    field.vis("pub");
-                    if let Some(ref docs) = param.description {
-                        field.doc(docs);
-                    }
-                    field.annotation("#[serde(skip_serializing_if = \"Option::is_none\")]");
-                    field
-                })
-                .collect_vec();
-            let func_param_name = {
-                if obj_params.is_empty() {
-                    None
+                let name = if !operation.parameters.path.is_empty() {
+                    let rust_type = ret_type.to_snake_case().replace("_response", "");
+                    format!(
+                        "{}_{}_by_{}",
+                        method,
+                        rust_type,
+                        operation
+                            .parameters
+                            .path
+                            .iter()
+                            .map(|x| &x.name)
+                            .join("_and_")
+                    )
                 } else {
-                    context!(context, scope);
+                    format!("{}_{}", method, path_name.elements.iter().join("_"))
+                };
+                let _name = context.handle_with_name(name.clone());
+                let path_params = operation
+                    .parameters
+                    .path
+                    .iter()
+                    .filter(|param| !context.constant_parameters.contains(&param.name))
+                    .map(|param| {
+                        let param_name = param.name.to_snake_case();
+                        let _name_handle = context.handle_with_name(param_name.clone());
+                        let rust_type = if let Some(ty) =
+                            context.extra_types.get(&param_name.to_upper_camel_case())
+                        {
+                            ty.clone()
+                        } else {
+                            param
+                                .r#type
+                                .schema_object
+                                .to_rust_type_name(context.clone())
+                                .unwrap()
+                        };
 
-                    let func_params = scope
-                        .new_struct(&obj_params_name)
-                        .vis("pub")
-                        .derive("Default");
-                    struc_opts!(func_params);
-                    for field in obj_params {
-                        func_params.push_field(field);
-                    }
-                    Some(obj_params_name)
-                }
-            };
-
-            let ret_type = format!(
-                "{}::{}",
-                {
-                    context!(context, scope);
-                    scope.name.clone()
-                },
-                ret_type.to_upper_camel_case()
-            );
-
-            let mut scope = context.scope.borrow_mut();
-            let scope = scope.new_impl(&input.ident.to_string());
-            let mut func = scope
-                .new_fn(&name.to_snake_case())
-                .vis("pub")
-                .ret(format!("Result<{},Error>", ret_type));
-            if let Some(ref docs) = operation.summary {
-                func.doc(docs);
-            }
-            func.set_async(true);
-            func.arg_ref_self();
-            for (param_name, rust_type, _) in path_params.iter() {
-                func = func.arg(
-                    &param_name,
-                    if rust_type == "String" {
-                        "impl AsRef<str>"
+                        (param_name, rust_type, param.name.clone())
+                    })
+                    .collect_vec();
+                let obj_params_name = format!("{}Params", name.to_upper_camel_case());
+                let _handle = context.handle_with_name(obj_params_name.clone());
+                let obj_params = operation
+                    .parameters
+                    .query
+                    .iter()
+                    .filter(|param| !context.constant_parameters.contains(&param.name))
+                    .map(|param| {
+                        let context = context.clone();
+                        let param_name = param.name.to_snake_case();
+                        let _handle = context.handle_with_name(param_name.clone());
+                        let rust_type = if let Some(ty) =
+                            context.extra_types.get(&param_name.to_upper_camel_case())
+                        {
+                            ty.clone()
+                        } else {
+                            param
+                                .r#type
+                                .schema_object
+                                .to_rust_type_name(context.clone())
+                                .unwrap()
+                        };
+                        let mut field =
+                            codegen::Field::new(&param_name, format!("Option<{}>", rust_type));
+                        field.vis("pub");
+                        if let Some(ref docs) = param.description {
+                            field.doc(docs);
+                        }
+                        field.annotation("#[serde(skip_serializing_if = \"Option::is_none\")]");
+                        field
+                    })
+                    .collect_vec();
+                let func_param_name = {
+                    if obj_params.is_empty() {
+                        None
                     } else {
-                        &rust_type
+                        context!(context, scope);
+
+                        let func_params = scope
+                            .new_struct(&obj_params_name)
+                            .vis("pub")
+                            .derive("Default");
+                        struc_opts!(func_params);
+                        for field in obj_params {
+                            func_params.push_field(field);
+                        }
+                        Some(obj_params_name)
+                    }
+                };
+
+                let ret_type = format!(
+                    "{}::{}",
+                    {
+                        context!(context, scope);
+                        scope.name.clone()
                     },
+                    ret_type.to_upper_camel_case()
                 );
-            }
-            if let Some(func_param_name) = &func_param_name {
-                func.arg(
-                    "params",
-                    format!("{}::{}", "generated_types", func_param_name),
+
+                let mut scope = context.scope.borrow_mut();
+                let scope = scope.new_impl(&input.ident.to_string());
+                let mut func = scope
+                    .new_fn(&name.to_snake_case())
+                    .vis("pub")
+                    .ret(format!("Result<{},Error>", ret_type));
+                let mut docs = format!(
+                    "Auto-generated method for the `{}` `{}` endpoint.",
+                    "GET", path_name.internal
                 );
-            }
-            let mut path_name = path_name.clone();
-            for (param_name, ty, original_name) in path_params {
-                let to_replace = format!("{{{}}}", original_name);
-                let replacement = if ty == "String" {
-                    func.line(format!(
+                if let Some(ref summary) = operation.summary {
+                    docs.push_str("\n\n");
+                    docs.push_str(&summary);
+                }
+                func.doc(&docs);
+                func.set_async(true);
+                func.arg_ref_self();
+                for (param_name, rust_type, _) in path_params.iter() {
+                    func = func.arg(
+                        &param_name,
+                        if rust_type == "String" {
+                            "impl AsRef<str>"
+                        } else {
+                            &rust_type
+                        },
+                    );
+                }
+                if let Some(func_param_name) = &func_param_name {
+                    func.arg(
+                        "params",
+                        format!("{}::{}", "generated_types", func_param_name),
+                    );
+                }
+                let mut path_name = path_name.clone();
+                for (param_name, ty, original_name) in path_params {
+                    let to_replace = format!("{{{}}}", original_name);
+                    let replacement = if ty == "String" {
+                        func.line(format!(
                         "let {0} =  url_escape::encode_path(&clean({0}.as_ref().to_string())).into_owned();",
                         &param_name
                     ));
-                    format!("{{{}}}", param_name)
-                } else {
-                    format!("{{{}}}", param_name)
-                };
-                path_name.internal = path_name.internal.replace(&to_replace, &replacement);
-            }
-            //            println!("Generating function a: {}", path_name.internal);
+                        format!("{{{}}}", param_name)
+                    } else {
+                        format!("{{{}}}", param_name)
+                    };
+                    path_name.internal = path_name.internal.replace(&to_replace, &replacement);
+                }
+                //            println!("Generating function a: {}", path_name.internal);
 
-            func.line(format!("let path = format!(\"{}\");", &path_name.internal));
-            if let Some(_params) = func_param_name {
-                func.line("self.rq(format!(\"{}?{}\", path, to_query(params))).await");
-            } else {
-                func.line("self.rq(path).await");
+                func.line(format!("let path = format!(\"{}\");", &path_name.internal));
+                if let Some(_params) = func_param_name {
+                    func.line("self.rq(format!(\"{}?{}\", path, to_query(params))).await");
+                } else {
+                    func.line("self.rq(path).await");
+                }
+                if let Some(ref mut debug_file) = debug_file {
+                    // format like the readme table
+                    if i == 0 {
+                        writeln!(debug_file, "| {} | [{}](https://docs.rs/ptv/latest/ptv/struct.Client.html#method.{}) | 🟦      |                                   |",
+                            section.to_title_case(),
+                            path_name.internal,
+                            name.to_snake_case()
+                        ).ok();
+                    } else {
+                        writeln!(debug_file, "|                   | [{}](https://docs.rs/ptv/latest/ptv/struct.Client.html#method.{}) | 🟦      |                                   |",
+                            path_name.internal,
+                            name.to_snake_case()
+                        ).ok();
+                    }
+                }
+
             }
         }
     }
