@@ -2,17 +2,23 @@ use anyhow::Context as AnyhowContext;
 use heck::ToUpperCamelCase;
 use heck::*;
 use itertools::Itertools;
-use lazy_static::lazy_static;
 use numerics::ToPrimitive;
 use serde::{Deserialize, Serialize};
-use serde_repr::Deserialize_repr;
 
 use std::{
-    any::Any,
     cell::RefCell,
     collections::VecDeque,
-    rc::{Rc, Weak},
+    rc::Rc,
 };
+
+macro_rules! context {
+    ($e:expr,$id:ident) => {
+        let mut scopea = $e.scope.borrow_mut();
+        let $id = scopea
+            .get_module_mut("generated_types")
+            .context("Expected generated_types module")?;
+    };
+}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
 pub struct TypePath(pub String);
@@ -20,18 +26,18 @@ pub struct TypePath(pub String);
 #[derive(Debug)]
 pub struct Context {
     pub types: std::collections::HashMap<TypePath, String>,
-    pub extra_types: RefCell<std::collections::HashMap<String, String>>,
+    pub extra_types: std::collections::HashMap<String, String>,
     pub scope: RefCell<codegen::Scope>,
     pub constant_parameters: Vec<String>,
     // probably not the best way, but it makes sense
-    pub extra_name: RefCell<VecDeque<String>>,
+    pub name_stack: RefCell<VecDeque<String>>,
     pub strip_prefix: Option<String>,
 }
 
 impl Context {
     pub fn handle_with_name<'a>(&'a self, name: String) -> ContextHandle<'a> {
         //        println!("Pushing name: {}", &name);
-        self.extra_name.borrow_mut().push_front(name);
+        self.name_stack.borrow_mut().push_front(name);
 
         //       println!("Current stack: {:?}", &self.extra_name.borrow());
         ContextHandle { context: self }
@@ -39,13 +45,17 @@ impl Context {
 
     pub fn get_name(&self) -> String {
         let name = self
-            .extra_name
+            .name_stack
             .borrow()
             .iter()
             .map(|s| s.to_upper_camel_case())
             .join("");
         //println!("Name: {}", &name);
         name
+    }
+
+    pub fn get_top_name(&self) -> Option<String> {
+        self.name_stack.borrow().front().cloned()
     }
 }
 
@@ -55,7 +65,7 @@ pub struct ContextHandle<'a> {
 
 impl Drop for ContextHandle<'_> {
     fn drop(&mut self) {
-        let mut names = self.context.extra_name.borrow_mut();
+        let mut names = self.context.name_stack.borrow_mut();
         names.pop_front();
     }
 }
@@ -162,16 +172,16 @@ impl ToRustTypeName for TypeTagged {
                     .unwrap_or(Ok("f64".to_string()))?;
                 if let Some(en) = r#enum {
                     let enum_name = context
-                        .extra_name
+                        .name_stack
                         .borrow_mut()
                         .front()
                         .context("Expected extra name for enum")?
                         .to_upper_camel_case();
-                    if let Some(enuma) = context.extra_types.borrow().get(&enum_name) {
+                    if let Some(enuma) = context.extra_types.get(&enum_name) {
                         Ok(enuma.clone())
                     } else {
                         let enum_name = context.get_name();
-                        let scope = &mut context.scope.borrow_mut();
+                        context!(context, scope);
                         let enm = scope.new_enum(&enum_name);
                         enm.vis("pub");
                         enm.derive("Debug");
@@ -202,18 +212,18 @@ impl ToRustTypeName for TypeTagged {
                     .unwrap_or(Ok("i64".to_string()))?;
                 if let Some(en) = r#enum {
                     let enum_name = context
-                        .extra_name
+                        .name_stack
                         .borrow_mut()
                         .front()
                         .context("Expected extra name for enum")?
                         .to_upper_camel_case();
 
                     //println!("Generating enum: {}", &enum_name);
-                    if let Some(enuma) = context.extra_types.borrow().get(&enum_name) {
+                    if let Some(enuma) = context.extra_types.get(&enum_name) {
                         return Ok(enuma.clone());
                     } else {
                         let enum_name = context.get_name();
-                        let scope = &mut context.scope.borrow_mut();
+                        context!(context, scope);
                         let new_enum_name = format!("{}Enum", enum_name);
                         //                        println!("Generating enum: {}", &new_enum_name);
                         let enm = scope.new_enum(&new_enum_name);
@@ -241,16 +251,16 @@ impl ToRustTypeName for TypeTagged {
             TypeTagged::String { r#enum } => {
                 if let Some(en) = r#enum {
                     let enum_name = context
-                        .extra_name
+                        .name_stack
                         .borrow_mut()
                         .front()
                         .context("Expected extra name for enum")?
                         .to_upper_camel_case();
-                    if let Some(enuma) = context.extra_types.borrow().get(&enum_name) {
+                    if let Some(enuma) = context.extra_types.get(&enum_name) {
                         return Ok(enuma.clone());
                     } else {
                         let enum_name = context.get_name();
-                        let scope = &mut context.scope.borrow_mut();
+                        context!(context, scope);
                         //                        println!("Generating enum: {}", &enum_name);
                         let enm = scope.new_enum(&enum_name);
                         enm.vis("pub");
@@ -281,7 +291,7 @@ impl ToRustTypeName for TypeTagged {
             TypeTagged::Boolean => Ok("bool".to_string()),
             TypeTagged::Array { items } => {
                 {
-                    let mut borrowed = context.extra_name.borrow_mut();
+                    let mut borrowed = context.name_stack.borrow_mut();
                     let front_mut = borrowed.front_mut();
                     if let Some(name) = front_mut {
                         *name = name.strip_suffix("s").unwrap_or(name).to_string();
@@ -299,12 +309,12 @@ impl ToRustTypeName for TypeTagged {
                 required,
             } => {
                 let struct_name = context
-                    .extra_name
+                    .name_stack
                     .borrow_mut()
                     .front()
                     .context("Expected extra name for object")?
                     .to_upper_camel_case();
-                if let Some(structa) = context.extra_types.borrow().get(&struct_name) {
+                if let Some(structa) = context.extra_types.get(&struct_name) {
                     return Ok(structa.clone());
                 } else {
                     let struct_name = context.get_name();
@@ -314,9 +324,10 @@ impl ToRustTypeName for TypeTagged {
                     strukt.derive("Debug");
                     strukt.derive("Serialize");
                     strukt.derive("Deserialize");
+
                     if let Some(props) = properties {
                         for (prop_name, prop_type) in props {
-                            let mut rename_to = prop_name;
+                            let rename_to = prop_name;
                             let mut field_name = prop_name.to_snake_case();
                             if field_name == "type" {
                                 field_name = "type_".to_string();
@@ -342,7 +353,7 @@ impl ToRustTypeName for TypeTagged {
                         }
                     }
                     if let Some(add_props) = additional_properties {
-                        let handle = context.handle_with_name("additional_properties".to_string());
+                        let _handle = context.handle_with_name("additional_properties".to_string());
                         let typea = add_props.schema_object.to_rust_type_name(context.clone())?;
                         let mut field = codegen::Field::new(
                             "additional_properties",
@@ -361,7 +372,8 @@ impl ToRustTypeName for TypeTagged {
                         strukt.push_field(field);
                     }
                     {
-                        context.scope.borrow_mut().push_struct(strukt);
+                        context!(context, scope);
+                        scope.push_struct(strukt);
                     }
                     Ok(struct_name)
                 }
@@ -386,12 +398,16 @@ impl ToRustTypeName for TypeUntagged {
         match self {
             TypeUntagged::Tagged(tagged) => tagged.to_rust_type_name(context),
             TypeUntagged::Ref { r#ref } => {
-                let type_name = context
-                    .types
-                    .get(r#ref)
-                    .cloned()
-                    .unwrap_or("serde_json::Value".to_string());
-                Ok(type_name.clone())
+                let type_name = context.types.get(r#ref).cloned();
+                if let Some(type_name) = type_name {
+                    Ok(context
+                        .extra_types
+                        .get(&type_name)
+                        .cloned()
+                        .unwrap_or(type_name))
+                } else {
+                    Ok("serde_json::Value".to_string())
+                }
             }
         }
     }
@@ -487,7 +503,6 @@ mod locations {
 
 pub use locations::{AsInLocation, InLocation};
 
-use locations::Query;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Parameter<T>

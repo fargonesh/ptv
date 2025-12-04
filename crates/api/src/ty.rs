@@ -4,18 +4,14 @@
 //!
 //! I appreciate any work done to fill in the TODO: T types.
 
-use chrono::{NaiveDate, NaiveDateTime};
+use chrono::NaiveDate;
 use derive_more::{Display, From};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use std::{collections::BTreeMap, str::FromStr};
-use to_and_fro::{ToAndFro, output_case};
+use std::str::FromStr;
+use to_and_fro::ToAndFro;
 
-use crate::helpers::{
-    de_iso_8601, de_rfc3339, de_service_time, deserialize_path, opt_de_rfc3339, opt_ser_rfc3339,
-    ser_disruption_query, ser_iso_8601, ser_rfc3339, ser_touch_utc,
-};
+use crate::helpers::deserialize_path;
 
 pub struct I32ButSilly(pub i32);
 impl<'de> Deserialize<'de> for I32ButSilly {
@@ -118,11 +114,12 @@ impl From<RouteType> for i8 {
         }
     }
 }
+
 /// Modes of disruption
 #[derive(Debug, Serialize, Deserialize, Clone, From, Copy)]
 #[serde(tag = "disruption_mode_name", content = "disruption_mode")]
 #[repr(i8)]
-pub enum DisruptionModes {
+pub enum DisruptionMode {
     #[serde(rename = "metro_train")]
     MetroTrain = 1, //    {
     #[serde(rename = "metro_bus")]
@@ -153,7 +150,7 @@ pub enum DisruptionModes {
     General = 100,
 }
 
-impl DisruptionModes {
+impl DisruptionMode {
     pub fn as_number(&self) -> i8 {
         *self as i8
     }
@@ -170,7 +167,7 @@ pub struct Status {
 }
 
 //
-#[derive(ToAndFro, PartialOrd, Ord)]
+#[derive(ToAndFro, PartialOrd, Ord, Serialize, Deserialize)]
 #[input_case("lower")]
 #[output_case("lower")]
 pub enum DisruptionStatus {
@@ -184,7 +181,7 @@ pub struct ApiError {
     pub status: Status,
 }
 
-#[derive(ToAndFro, Serialize)]
+#[derive(ToAndFro, Serialize, Deserialize)]
 pub enum ExpandOptions {
     All,
     Stop,

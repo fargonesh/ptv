@@ -1,5 +1,5 @@
 #![cfg(not(target_arch = "wasm32"))]
-use std::{collections::HashMap, fmt::Debug};
+use std::fmt::Debug;
 
 use {
     crate::*,
@@ -12,7 +12,6 @@ use {
 use serde::{Deserialize, Serialize};
 
 use code_generator::SwaggerClient;
-use derive_more::Display;
 
 pub const API_URL: &str = "https://timetableapi.ptv.vic.gov.au";
 
@@ -20,11 +19,14 @@ type PtvHmac = Hmac<Sha1>;
 
 use anyhow::Error;
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Modes(#[serde(serialize_with = "ser_disruption_query")] pub Option<Vec<DisruptionMode>>);
+
 #[derive(SwaggerClient)]
 #[swagger(
     path = "v3",
     strip_prefix = "V3.",
-    extra_names = [("RouteType", "ty::RouteType"), ("Status", "ty::Status"),("Expand", "ty::ExpandOptions"), ("DisruptionStatus", "ty::DisruptionStatus"), ("ServiceOperator", "ty::ServiceOperator")],
+    extra_names = [("RouteType", "crate::ty::RouteType"), ("Status", "crate::ty::Status"), ("Expand", "Vec<crate::ty::ExpandOptions>"), ("ServiceOperator", "crate::ty::ServiceOperator"), ("DisruptionStatus", "crate::ty::DisruptionStatus"), ("Geopath", "Option<crate::ty::Geopath>"),("RouteId", "crate::ty::RouteId"),("StopId", "crate::ty::StopId"),("RunId", "crate::ty::RunId"),("DirectionId", "crate::ty::DirectionId"),("DisruptionId", "crate::ty::DisruptionId"), ("DisruptionMode", "crate::ty::DisruptionMode"), ("DisruptionModes", "crate::core::Modes")],
     skip = ["signature"]
 )]
 pub struct Client {
@@ -33,41 +35,14 @@ pub struct Client {
     #[swagger(static)]
     token: String,
 }
-pub fn to_query<T: Serialize>(s: T) -> String {
-    serde_json::to_value(s)
-        .unwrap()
-        .as_object()
-        .unwrap()
-        .iter()
-        .map(|(k, v)| {
-            // If v is an array, define k={v[0]}&k={v[1]}&...
-            if v.is_array() {
-                v.as_array()
-                    .unwrap()
-                    .iter()
-                    .map(|v| {
-                        format!(
-                            "{}={}",
-                            k,
-                            url_escape::encode_query(&clean(v.to_string())).into_owned()
-                        )
-                    })
-                    .collect::<Vec<String>>()
-                    .join("&")
-            } else {
-                format!("{}={}", k, clean(v.to_string()))
-            }
-        })
-        .collect::<Vec<String>>()
-        .join("&")
-}
+
+use helpers::to_query;
 
 impl Client {
     pub fn new(devid: String, token: String) -> Self {
         Self { devid, token }
     }
     pub async fn rq<T: DeserializeOwned + Debug>(&self, path: String) -> Result<T> {
-        println!("Request path: {}", path);
         let path = format!(
             "{path}{}devid={}",
             {

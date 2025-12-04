@@ -1,9 +1,9 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc, str::FromStr};
+use anyhow::Context as AnyhowContext;
+use std::{collections::HashMap, rc::Rc, str::FromStr};
 
 use heck::{ToSnakeCase, ToUpperCamelCase};
 use itertools::Itertools;
-use quote::quote;
-use syn::{DataStruct, DeriveInput, parse::Parse, spanned::Spanned};
+use syn::{DeriveInput, parse::Parse, spanned::Spanned};
 
 use crate::types::{Context, SwaggerFile, ToRustTypeName, TypePath};
 
@@ -116,6 +116,7 @@ impl Parse for SwaggerClientArgs {
     }
 }
 
+#[macro_use]
 mod types;
 
 fn derive_actual(
@@ -161,14 +162,24 @@ fn derive_actual(
             )
         })
         .collect::<std::collections::HashMap<TypePath, String>>();
+
     let context = Rc::new(Context {
         scope: std::cell::RefCell::new(codegen::Scope::new()),
         constant_parameters,
         strip_prefix: args.strip_prefix.clone(),
         types: names,
-        extra_name: Default::default(),
-        extra_types: RefCell::new(args.extra_names),
+        name_stack: Default::default(),
+        extra_types: args.extra_names,
     });
+    let mut module = codegen::Module::new("generated_types");
+    {
+        let mut scope = context.scope.borrow_mut();
+        module.import("serde", "Serialize");
+        module.import("serde", "Deserialize");
+        module.import("derive_more", "Display");
+        module.vis("pub");
+        scope.push_module(module.clone());
+    }
     for (name, ty) in &result.definitions {
         let context = context.clone();
         let name = if let Some(ref prefix) = args.strip_prefix {
@@ -191,18 +202,18 @@ fn derive_actual(
     for (path_name, path_item) in paths {
         //        println!("path_name: {:?}", path_name);
         for (method, operation) in &path_item.methods {
+            let ret_type = operation
+                .responses
+                .get("200")
+                .unwrap()
+                .schema
+                .as_ref()
+                .unwrap()
+                .schema_object
+                .to_rust_type_name(context.clone())?;
+
             let name = if !operation.parameters.path.is_empty() {
-                let rust_type = operation
-                    .responses
-                    .get("200")
-                    .unwrap()
-                    .schema
-                    .as_ref()
-                    .unwrap()
-                    .schema_object
-                    .to_rust_type_name(context.clone())?
-                    .to_snake_case()
-                    .replace("_response", "");
+                let rust_type = ret_type.to_snake_case().replace("_response", "");
                 format!(
                     "{}_{}_by_{}",
                     method,
@@ -226,11 +237,18 @@ fn derive_actual(
                 .map(|param| {
                     let param_name = param.name.to_snake_case();
                     let _name_handle = context.handle_with_name(param_name.clone());
-                    let rust_type = param
-                        .r#type
-                        .schema_object
-                        .to_rust_type_name(context.clone())
-                        .unwrap();
+                    let rust_type = if let Some(ty) =
+                        context.extra_types.get(&param_name.to_upper_camel_case())
+                    {
+                        ty.clone()
+                    } else {
+                        param
+                            .r#type
+                            .schema_object
+                            .to_rust_type_name(context.clone())
+                            .unwrap()
+                    };
+
                     (param_name, rust_type, param.name.clone())
                 })
                 .collect_vec();
@@ -245,11 +263,17 @@ fn derive_actual(
                     let context = context.clone();
                     let param_name = param.name.to_snake_case();
                     let _handle = context.handle_with_name(param_name.clone());
-                    let rust_type = param
-                        .r#type
-                        .schema_object
-                        .to_rust_type_name(context.clone())
-                        .unwrap();
+                    let rust_type = if let Some(ty) =
+                        context.extra_types.get(&param_name.to_upper_camel_case())
+                    {
+                        ty.clone()
+                    } else {
+                        param
+                            .r#type
+                            .schema_object
+                            .to_rust_type_name(context.clone())
+                            .unwrap()
+                    };
                     let mut field =
                         codegen::Field::new(&param_name, format!("Option<{}>", rust_type));
                     field.vis("pub");
@@ -258,30 +282,33 @@ fn derive_actual(
                 })
                 .collect_vec();
             let func_param_name = {
-                let mut scope = context.scope.borrow_mut();
+                if obj_params.is_empty() {
+                    None
+                } else {
+                    context!(context, scope);
 
-                let func_params = scope
-                    .new_struct(&obj_params_name)
-                    .vis("pub")
-                    .derive("Debug")
-                    .derive("Serialize")
-                    .derive("Deserialize")
-                    .derive("Default");
-                for field in obj_params {
-                    func_params.push_field(field);
+                    let func_params = scope
+                        .new_struct(&obj_params_name)
+                        .vis("pub")
+                        .derive("Debug")
+                        .derive("Serialize")
+                        .derive("Deserialize")
+                        .derive("Default");
+                    for field in obj_params {
+                        func_params.push_field(field);
+                    }
+                    Some(obj_params_name)
                 }
-                func_params.ty().clone()
             };
 
-            let ret_type = operation
-                .responses
-                .get("200")
-                .unwrap()
-                .schema
-                .as_ref()
-                .unwrap()
-                .schema_object
-                .to_rust_type_name(context.clone())?;
+            let ret_type = format!(
+                "{}::{}",
+                {
+                    context!(context, scope);
+                    scope.name.clone()
+                },
+                ret_type.to_upper_camel_case()
+            );
 
             let mut scope = context.scope.borrow_mut();
             let scope = scope.new_impl(&input.ident.to_string());
@@ -289,12 +316,27 @@ fn derive_actual(
                 .new_fn(&name.to_snake_case())
                 .vis("pub")
                 .ret(format!("Result<{},Error>", ret_type));
+            if let Some(ref docs) = operation.summary {
+                func.doc(docs);
+            }
             func.set_async(true);
             func.arg_ref_self();
             for (param_name, rust_type, _) in path_params.iter() {
-                func = func.arg(&param_name, rust_type);
+                func = func.arg(
+                    &param_name,
+                    if rust_type == "String" {
+                        "impl AsRef<str>"
+                    } else {
+                        &rust_type
+                    },
+                );
             }
-            func.arg("params", func_param_name);
+            if let Some(func_param_name) = &func_param_name {
+                func.arg(
+                    "params",
+                    format!("{}::{}", "generated_types", func_param_name),
+                );
+            }
             // Take path parameters and pass them from elements
             // find each `{param}` in path and replace with `{param}` but in snake_case and not using the elements but internal
             let mut path_name = path_name.clone();
@@ -302,7 +344,7 @@ fn derive_actual(
                 let to_replace = format!("{{{}}}", original_name);
                 let replacement = if ty == "String" {
                     func.line(format!(
-                        "let {0} =  url_escape::encode_path(&clean({0}.to_owned())).into_owned();",
+                        "let {0} =  url_escape::encode_path(&clean({0}.as_ref().to_string())).into_owned();",
                         &param_name
                     ));
                     format!("{{{}}}", param_name)
@@ -311,14 +353,18 @@ fn derive_actual(
                 };
                 path_name.internal = path_name.internal.replace(&to_replace, &replacement);
             }
-            println!("Generating function: {}", path_name.internal);
+            //            println!("Generating function a: {}", path_name.internal);
 
             func.line(format!("let path = format!(\"{}\");", &path_name.internal));
-            func.line("self.rq(format!(\"{}?{}\", path, to_query(params))).await");
+            if let Some(_params) = func_param_name {
+                func.line("self.rq(format!(\"{}?{}\", path, to_query(params))).await");
+            } else {
+                func.line("self.rq(path).await");
+            }
         }
     }
-    let ident = &input.ident;
-    let scope = context.scope.borrow();
+    let _ident = &input.ident;
+    let scope = context.scope.borrow_mut();
     let generated = scope.to_string();
     //    std::fs::write("output.rs", &generated).unwrap();
 

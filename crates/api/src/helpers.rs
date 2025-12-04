@@ -3,7 +3,7 @@ use itertools::Itertools;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de::SeqAccess, ser};
 
-use crate::DisruptionModes;
+use crate::DisruptionMode;
 
 pub fn clean(s: String) -> String {
     let mut s = s;
@@ -206,7 +206,7 @@ where
 }
 
 pub fn ser_disruption_query<S>(
-    disruption: &Option<Vec<DisruptionModes>>,
+    disruption: &Option<Vec<DisruptionMode>>,
     serializer: S,
 ) -> Result<S::Ok, S::Error>
 where
