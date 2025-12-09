@@ -31,7 +31,6 @@ pub enum DateTime {
 
 #[derive(SwaggerClient)]
 #[swagger(
-    path = "v3",
     strip_prefix = "V3.",
     extra_names = [("RouteType", "crate::ty::RouteType"), ("Status", "crate::ty::Status"), ("Expand", "Vec<crate::ty::ExpandOptions>"), ("ServiceOperator", "crate::ty::ServiceOperator"), ("DisruptionStatus", "crate::ty::DisruptionStatus"), ("Geopath", "Option<crate::ty::Geopath>"),("RouteId", "crate::ty::RouteId"),("StopId", "crate::ty::StopId"),("RunId", "crate::ty::RunId"),("DirectionId", "crate::ty::DirectionId"),("DisruptionId", "crate::ty::DisruptionId"), ("DisruptionMode", "crate::ty::DisruptionMode"), ("DisruptionModes", "crate::core::Modes"), ("DateTime", "crate::core::DateTime")],
     path_skip = ["/v3/disruptions/modes", "/v3/routes/types"],

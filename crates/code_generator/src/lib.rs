@@ -9,7 +9,6 @@ use syn::{DeriveInput, parse::Parse, spanned::Spanned};
 use crate::types::{Context, SwaggerFile, ToRustTypeName, TypePath};
 
 struct SwaggerClientArgs {
-    path: String,
     strip_prefix: Option<String>,
     skipped: Vec<String>,
     extra_names: HashMap<String, String>,
@@ -18,7 +17,6 @@ struct SwaggerClientArgs {
 
 impl Parse for SwaggerClientArgs {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let mut path = None;
         let mut strip_prefix = None;
         let mut extra_names = None;
         let mut skipped = Vec::new();
@@ -29,10 +27,6 @@ impl Parse for SwaggerClientArgs {
             input.parse::<syn::Token![=]>()?;
 
             match ident.to_string().as_str() {
-                "path" => {
-                    let lit: syn::LitStr = input.parse()?;
-                    path = Some(lit.value());
-                }
                 "strip_prefix" => {
                     let lit: syn::LitStr = input.parse()?;
                     strip_prefix = Some(lit.value());
@@ -126,10 +120,7 @@ impl Parse for SwaggerClientArgs {
             }
         }
 
-        let path = path.ok_or_else(|| syn::Error::new(input.span(), "Missing 'path' argument"))?;
-
         Ok(SwaggerClientArgs {
-            path,
             path_skip,
             strip_prefix,
             skipped,
@@ -141,12 +132,14 @@ impl Parse for SwaggerClientArgs {
 #[macro_use]
 mod types;
 
+const SWAGGER_FILE: &str = include_str!("../../../v3");
+
 fn derive_actual(
     input: DeriveInput,
     args: SwaggerClientArgs,
 ) -> anyhow::Result<proc_macro::TokenStream> {
     let debug_output_file = option_env!("DOC_FILE");
-    println!("DOC_FILE: {:?}", debug_output_file);
+    // println!("DOC_FILE: {:?}", debug_output_file);
     let mut debug_file = if let Some(file) = debug_output_file {
         Some(std::fs::File::create(file)?)
     } else {
@@ -157,8 +150,7 @@ fn derive_actual(
         writeln!(debug_file, "# Swagger Client Generation Debug Output").ok();
     }
 
-    let mut deserializer =
-        serde_json::Deserializer::from_reader(std::fs::File::open(&args.path).unwrap());
+    let mut deserializer = serde_json::Deserializer::from_str(SWAGGER_FILE);
     let mut constant_parameters = Vec::new();
     constant_parameters.extend(args.skipped);
 
@@ -172,7 +164,7 @@ fn derive_actual(
             constant_parameters.push(field_name);
         });
     }
-    println!("Constant parameters: {:?}", &constant_parameters);
+    // println!("Constant parameters: {:?}", &constant_parameters);
     let result: SwaggerFile = match serde_path_to_error::deserialize(&mut deserializer) {
         Ok(v) => v,
         Err(e) => {
